@@ -38,7 +38,7 @@ const LoginScreen: React.FC = () => {
             </button>
 
             <div className="mt-12 text-gray-600 text-sm">
-                Powered by Google Gemini & MediaPipe
+                Powered by Google Gemini & Aryan-algorithms
             </div>
         </div>
     );
