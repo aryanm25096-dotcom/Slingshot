@@ -16,6 +16,15 @@ export interface Vector {
 export type BubbleColor = 'red' | 'blue' | 'green' | 'yellow' | 'purple' | 'orange';
 export type Difficulty = 'easy' | 'normal' | 'hard';
 
+export interface UserProfile {
+  uid?: string;
+  displayName: string;
+  photoURL: string;
+  bestScore: number;
+  gamesPlayed: number;
+  lastSeen: any; // Firestore Timestamp
+}
+
 export interface Bubble {
   id: string;
   row: number;

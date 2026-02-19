@@ -4,45 +4,26 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { BrainCircuit, ChevronRight, Play } from 'lucide-react';
-
-import { Difficulty } from '../types';
+import { BrainCircuit, Play } from 'lucide-react';
+import { Difficulty, UserProfile } from '../types';
+import GameLogo from './GameLogo';
 
 interface WelcomeScreenProps {
+    userProfile: UserProfile | null;
     onComplete: (difficulty: Difficulty) => void;
 }
 
-const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onComplete }) => {
+const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ userProfile, onComplete }) => {
     const [phase, setPhase] = useState(1);
     const [difficulty, setDifficulty] = useState<Difficulty>('normal');
     const [progress, setProgress] = useState(0);
     const [log, setLog] = useState("Initializing system...");
-    const [showSkip, setShowSkip] = useState(false);
-
-    // Phase 1: Logo Reveal (0s - 1.5s)
-    // Phase 2: Subtitle (1.5s - 2.5s)
-    // Phase 3: Loading (2.5s - 5.5s)
-    // Phase 4: Transition (5.5s+)
 
     useEffect(() => {
-        // Phase Transitions
         const t1 = setTimeout(() => setPhase(2), 1500);
         const t2 = setTimeout(() => setPhase(3), 2500);
-        const t3 = setTimeout(() => {
-            // Wait for user interaction 
-            // setPhase(4); 
-            // setTimeout(onComplete, 1000); 
-        }, 5500);
-
-        const tSkip = setTimeout(() => setShowSkip(true), 2000);
-
-        return () => {
-            clearTimeout(t1);
-            clearTimeout(t2);
-            clearTimeout(t3);
-            clearTimeout(tSkip);
-        };
-    }, [onComplete]);
+        return () => { clearTimeout(t1); clearTimeout(t2); };
+    }, []);
 
     // Loading Simulation
     useEffect(() => {
@@ -51,26 +32,17 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onComplete }) => {
             const interval = setInterval(() => {
                 currentProgress += Math.random() * 5;
                 if (currentProgress > 100) currentProgress = 100;
-
                 setProgress(currentProgress);
-
                 if (currentProgress < 30) setLog("Initializing MediaPipe Hands...");
                 else if (currentProgress < 60) setLog("Connecting to Gemini API...");
                 else if (currentProgress < 80) setLog("Loading Game Assets...");
                 else if (currentProgress < 100) setLog("Finalizing...");
                 else setLog("Ready.");
-
                 if (currentProgress >= 100) clearInterval(interval);
             }, 100);
-
             return () => clearInterval(interval);
         }
     }, [phase]);
-
-    const handleSkip = () => {
-        setPhase(4);
-        setTimeout(() => onComplete(difficulty), 500);
-    };
 
     const handleStart = () => {
         setPhase(4);
@@ -80,34 +52,37 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onComplete }) => {
     const renderLogo = () => {
         const text = "CAMBLASTER";
         return (
-            <div className="flex overflow-hidden">
-                {text.split('').map((char, index) => (
-                    <span
-                        key={index}
-                        className={`font-oxanium font-bold text-4xl md:text-7xl tracking-wider text-transparent bg-clip-text bg-gradient-to-b from-[#00FFFF] to-[#CCFF00]
-              ${phase >= 1 ? 'animate-fade-in-up' : 'opacity-0'}
-            `}
-                        style={{ animationDelay: `${index * 50}ms` }}
-                    >
-                        {char === ' ' ? '\u00A0' : char}
-                    </span>
-                ))}
+            <div className="flex flex-col items-center gap-4">
+                <div className={`${phase >= 1 ? 'animate-fade-in-up' : 'opacity-0'}`}>
+                    <GameLogo size="xl" />
+                </div>
+                <div className="flex overflow-hidden">
+                    {text.split('').map((char, index) => (
+                        <span
+                            key={index}
+                            className={`font-oxanium font-bold text-4xl md:text-7xl tracking-wider text-transparent bg-clip-text bg-gradient-to-b from-[#00FFFF] to-[#CCFF00]
+                  ${phase >= 1 ? 'animate-fade-in-up' : 'opacity-0'}
+                `}
+                            style={{ animationDelay: `${index * 50 + 200}ms` }}
+                        >
+                            {char === ' ' ? '\u00A0' : char}
+                        </span>
+                    ))}
+                </div>
             </div>
         );
     };
+
+    const firstName = userProfile?.displayName?.split(' ')[0] || 'Player';
+    const isReturning = userProfile && userProfile.gamesPlayed > 0;
 
     return (
         <div className={`fixed inset-0 z-[60] bg-[#0a0a14] flex flex-col items-center justify-center overflow-hidden transition-opacity duration-1000 ${phase === 4 ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
 
             {/* Background Ambience */}
             <div className="absolute inset-0 pointer-events-none">
-                {/* Noise Overlay */}
                 <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-150 mix-blend-overlay"></div>
-
-                {/* Radial Pulse */}
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full animate-pulse-glow" />
-
-                {/* Floating Particles */}
                 {[...Array(6)].map((_, i) => (
                     <div
                         key={i}
@@ -125,20 +100,36 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onComplete }) => {
 
             {/* Main Content */}
             <div className="relative z-10 flex flex-col items-center text-center px-4">
+                <div className="mb-6">{renderLogo()}</div>
 
-                {/* Phase 1: Logo */}
-                <div className="mb-6">
-                    {renderLogo()}
-                </div>
-
-                {/* Phase 2: Subtitle */}
+                {/* Subtitle */}
                 <div className={`flex items-center gap-3 text-blue-300 font-mono text-sm md:text-lg tracking-widest uppercase transition-all duration-1000 ${phase >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
                     <BrainCircuit className="w-5 h-5 text-purple-400" />
                     <span>Powered by Gemini 1.5 Flash</span>
                 </div>
 
-                {/* Phase 3: Loading Bar */}
-                <div className={`mt-16 w-64 md:w-96 transition-all duration-700 ${phase >= 3 ? 'opacity-100' : 'opacity-0'}`}>
+                {/* Personalized Greeting (Step 5) */}
+                <div className={`mt-6 transition-all duration-700 ${phase >= 3 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+                    {isReturning ? (
+                        <div className="animate-fade-in-up">
+                            <p className="text-lg text-white/90 font-medium">
+                                Welcome back, <span className="text-[#00FFFF] font-bold">{firstName}</span>! 👋
+                            </p>
+                            <p className="text-sm text-gray-400 mt-1">
+                                Your best score is <span className="text-[#CCFF00] font-bold">{(userProfile?.bestScore ?? 0).toLocaleString()}</span>
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="animate-fade-in-up">
+                            <p className="text-lg text-white/90 font-medium">
+                                Welcome, <span className="text-[#00FFFF] font-bold">{firstName}</span>! Ready to play?
+                            </p>
+                        </div>
+                    )}
+                </div>
+
+                {/* Loading Bar */}
+                <div className={`mt-10 w-64 md:w-96 transition-all duration-700 ${phase >= 3 ? 'opacity-100' : 'opacity-0'}`}>
                     <div className="h-1 w-full bg-gray-800 rounded-full overflow-hidden mb-2">
                         <div
                             className="h-full bg-gradient-to-r from-[#00FFFF] via-[#CCFF00] to-[#00FFFF] transition-all duration-100 ease-out"
@@ -149,13 +140,10 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onComplete }) => {
                         {'>'} {log}
                     </p>
                 </div>
-
             </div>
 
-            {/* Difficulty & Start (Phase 3+) */}
+            {/* Difficulty & Start */}
             <div className={`absolute bottom-20 z-20 flex flex-col items-center gap-6 transition-all duration-700 ${phase >= 3 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
-
-                {/* Difficulty Selector */}
                 <div className="flex gap-4 mb-4">
                     {(['easy', 'normal', 'hard'] as Difficulty[]).map((d) => (
                         <button
@@ -172,7 +160,6 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onComplete }) => {
                     ))}
                 </div>
 
-                {/* Start Button usually appears after loading, but we can enable it when ready */}
                 <button
                     onClick={handleStart}
                     disabled={progress < 100}
@@ -184,25 +171,12 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onComplete }) => {
                 >
                     <div className="absolute inset-0 bg-gradient-to-r from-[#00FFFF] to-[#CCFF00] opacity-20 group-hover:opacity-40 transition-opacity" />
                     <div className="absolute inset-0 border border-[#00FFFF] rounded-xl shadow-[0_0_15px_rgba(0,255,255,0.2)] group-hover:shadow-[0_0_30px_rgba(0,255,255,0.6)] transition-all" />
-
                     <span className="relative flex items-center gap-3 font-oxanium font-bold text-2xl text-white tracking-widest uppercase">
                         <Play className="w-6 h-6 fill-current" />
                         Enter Simulation
                     </span>
                 </button>
             </div>
-
-            {/* Skip Button */}
-            {/* {showSkip && (
-                <button
-                    onClick={handleStart}
-                    className="absolute bottom-8 right-8 flex items-center gap-2 text-gray-500 hover:text-white transition-colors font-mono text-xs uppercase tracking-widest z-20 group"
-                >
-                    Skip Intro
-                    <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                </button>
-            )} */}
-
         </div>
     );
 };

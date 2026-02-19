@@ -7,9 +7,10 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { getStrategicHint, TargetCandidate } from '../services/geminiService';
 import { Point, Bubble, Particle, BubbleColor, DebugInfo } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import { Loader2, Trophy, BrainCircuit, Play, MousePointerClick, Eye, Terminal, Clock, AlertTriangle, Target, Lightbulb, Monitor, LogOut, Flame } from 'lucide-react';
+import { Loader2, Trophy, BrainCircuit, Play, MousePointerClick, Eye, Terminal, Clock, AlertTriangle, Target, Lightbulb, Monitor, LogOut, Flame, Volume2, VolumeX, HelpCircle } from 'lucide-react';
 import { Difficulty } from '../types';
-import { playSound } from '../utils/audio';
+import { playPop, playWhoosh, playFanfare, playMatch, toggleMute, getIsMuted } from '../services/soundService';
+import GameLogo from './GameLogo';
 
 interface GeminiSlingshotProps {
     difficulty: Difficulty;
@@ -22,9 +23,9 @@ const PINCH_THRESHOLD = 0.05;
 const GRAVITY = 0.0;
 const FRICTION = 0.998;
 
-const BUBBLE_RADIUS = 22;
+const BUBBLE_RADIUS = 26;
 const ROW_HEIGHT = BUBBLE_RADIUS * Math.sqrt(3);
-const GRID_COLS = 12;
+const GRID_COLS = 11;
 const GRID_ROWS = 8;
 const SLINGSHOT_BOTTOM_OFFSET = 220;
 
@@ -98,6 +99,8 @@ const GeminiSlingshot: React.FC<GeminiSlingshotProps> = ({ difficulty, bestScore
     const [showNewBest, setShowNewBest] = useState(false);
     const [isAiThinking, setIsAiThinking] = useState(false);
     const [selectedColor, setSelectedColor] = useState<BubbleColor>('red');
+    const [muted, setMuted] = useState(getIsMuted());
+    const [aiToast, setAiToast] = useState<{ color: string; label: string } | null>(null);
     const [availableColors, setAvailableColors] = useState<BubbleColor[]>([]);
     const [aiRecommendedColor, setAiRecommendedColor] = useState<BubbleColor | null>(null);
     const [debugInfo, setDebugInfo] = useState<DebugInfo | null>(null);
@@ -308,8 +311,8 @@ const GeminiSlingshot: React.FC<GeminiSlingshotProps> = ({ difficulty, bestScore
             comboRef.current += 1;
             setCombo(comboRef.current);
 
-            if (matches.length > 5) playSound('combo');
-            else playSound('pop');
+            if (matches.length >= 4) playMatch();
+            else playPop();
 
             const multiplier = 1 + (comboRef.current * 0.1) + (matches.length > 3 ? 0.5 : 0);
             scoreRef.current += Math.floor(points * multiplier);
@@ -318,7 +321,7 @@ const GeminiSlingshot: React.FC<GeminiSlingshotProps> = ({ difficulty, bestScore
             // New Best Check
             if (scoreRef.current > bestScore && bestScore > 0 && !showNewBest) {
                 setShowNewBest(true);
-                playSound('newbest');
+                playFanfare();
             }
             // Notify App (debounce this in real app, but ok here)
             onScoreUpdate(scoreRef.current);
@@ -376,7 +379,11 @@ const GeminiSlingshot: React.FC<GeminiSlingshotProps> = ({ difficulty, bestScore
             if (typeof hint.targetRow === 'number' && typeof hint.targetCol === 'number') {
                 if (hint.recommendedColor) {
                     setAiRecommendedColor(hint.recommendedColor);
-                    setSelectedColor(hint.recommendedColor); // Auto-equip recommendation
+                    setSelectedColor(hint.recommendedColor); // Auto-equip
+                    // Toast notification
+                    const cfg = COLOR_CONFIG[hint.recommendedColor];
+                    setAiToast({ color: cfg.hex, label: cfg.label });
+                    setTimeout(() => setAiToast(null), 1500);
                 }
                 const pos = getBubblePos(hint.targetRow, hint.targetCol, canvasWidth);
                 setAimTarget(pos);
@@ -564,7 +571,7 @@ const GeminiSlingshot: React.FC<GeminiSlingshotProps> = ({ difficulty, bestScore
 
                     if (stretchDist > 30) {
                         isFlying.current = true;
-                        playSound('shoot');
+                        playWhoosh();
                         flightStartTime.current = performance.now();
                         const powerRatio = Math.min(stretchDist / MAX_DRAG_DIST, 1.0);
                         const velocityMultiplier = MIN_FORCE_MULT + (MAX_FORCE_MULT - MIN_FORCE_MULT) * (powerRatio * powerRatio);
@@ -673,7 +680,7 @@ const GeminiSlingshot: React.FC<GeminiSlingshotProps> = ({ difficulty, bestScore
                         // Game Over Check
                         if (newBubble.y > canvas.height - 120) {
                             onGameOver(scoreRef.current);
-                            playSound('gameover');
+                            playPop();
                             return;
                         }
 
@@ -899,6 +906,7 @@ const GeminiSlingshot: React.FC<GeminiSlingshotProps> = ({ difficulty, bestScore
             <div className="fixed top-0 left-0 right-0 z-50 p-6 flex justify-between items-start pointer-events-none">
                 <div className="flex flex-col gap-2">
                     <div className="flex items-center gap-4 bg-black/40 backdrop-blur-md px-6 py-3 rounded-2xl border border-white/10 pointer-events-auto">
+                        <GameLogo size="sm" />
                         <div className="flex flex-col">
                             <span className="text-xs text-gray-400 font-mono uppercase tracking-widest">Score</span>
                             <span className="text-4xl font-oxanium font-bold text-[#00FFFF] tabular-nums">{score}</span>
@@ -937,6 +945,13 @@ const GeminiSlingshot: React.FC<GeminiSlingshotProps> = ({ difficulty, bestScore
                 {/* Right Side Controls */}
                 <div className="flex flex-col items-end gap-3 pointer-events-auto">
                     <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => { toggleMute(); setMuted(getIsMuted()); }}
+                            className="bg-white/5 hover:bg-white/10 text-gray-300 p-2 rounded-xl transition-colors border border-white/10"
+                            title={muted ? 'Unmute' : 'Mute'}
+                        >
+                            {muted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+                        </button>
                         {user?.photoURL && (
                             <img src={user.photoURL} alt="User" className="w-10 h-10 rounded-full border-2 border-[#00FFFF] shadow-[0_0_15px_rgba(0,255,255,0.3)]" />
                         )}
@@ -956,6 +971,16 @@ const GeminiSlingshot: React.FC<GeminiSlingshotProps> = ({ difficulty, bestScore
             <div ref={gameContainerRef} className="flex-1 relative h-full overflow-hidden">
                 <video ref={videoRef} className="absolute hidden" playsInline />
                 <canvas ref={canvasRef} className="absolute inset-0" />
+
+                {/* AI Color Toast */}
+                {aiToast && (
+                    <div className="absolute top-20 left-1/2 -translate-x-1/2 z-40 animate-fade-in-up">
+                        <div className="flex items-center gap-2 bg-black/70 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 shadow-lg">
+                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: aiToast.color, boxShadow: `0 0 8px ${aiToast.color}` }} />
+                            <span className="text-white text-sm font-medium">🤖 AI equipped <span className="font-bold" style={{ color: aiToast.color }}>{aiToast.label}</span></span>
+                        </div>
+                    </div>
+                )}
 
                 {/* Loading Overlay */}
                 {loading && (
@@ -1152,12 +1177,16 @@ const GeminiSlingshot: React.FC<GeminiSlingshotProps> = ({ difficulty, bestScore
                             </div>
 
                             {debugInfo.error && (
-                                <div className="bg-[#ef5350]/10 border border-[#ef5350]/30 p-3 rounded-lg mb-3">
-                                    <div className="flex items-start gap-2 text-[#ef5350]">
+                                <div className={`p-3 rounded-lg mb-3 border ${debugInfo.error.includes('API Key') || debugInfo.error.includes('Missing or invalid') ? 'bg-yellow-500/10 border-yellow-500/30' : 'bg-[#ef5350]/10 border-[#ef5350]/30'}`}>
+                                    <div className={`flex items-start gap-2 ${debugInfo.error.includes('API Key') || debugInfo.error.includes('Missing or invalid') ? 'text-yellow-500' : 'text-[#ef5350]'}`}>
                                         <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
                                         <div>
-                                            <p className="text-xs font-bold">PARSE ERROR DETAILS</p>
-                                            <p className="text-[10px] font-mono mt-1 break-all">{debugInfo.error}</p>
+                                            <p className="text-xs font-bold">{debugInfo.error.includes('API Key') || debugInfo.error.includes('Missing or invalid') ? 'SETUP REQUIRED' : 'ERROR DETAILS'}</p>
+                                            <p className="text-[10px] font-mono mt-1 break-all">
+                                                {debugInfo.error.includes('API Key') || debugInfo.error.includes('Missing or invalid')
+                                                    ? 'Gemini API Key is missing/invalid. Please edit .env.local and add your key.'
+                                                    : debugInfo.error}
+                                            </p>
                                         </div>
                                     </div>
                                 </div>
