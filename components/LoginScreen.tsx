@@ -13,11 +13,11 @@ const LoginScreen: React.FC = () => {
     return (
         <div className="flex flex-col items-center justify-center w-full h-screen bg-[#0a0a14] text-white">
             <div className="mb-8 flex flex-col items-center animate-fade-in-down">
-                <div className="bg-gradient-to-br from-blue-500 to-purple-600 p-4 rounded-full mb-6 shadow-[0_0_30px_rgba(66,165,245,0.4)]">
-                    <Gamepad2 className="w-16 h-16 text-white" />
+                <div className="bg-gradient-to-br from-[#00FFFF] to-[#CCFF00] p-4 rounded-full mb-6 shadow-[0_0_30px_rgba(0,255,255,0.4)]">
+                    <Gamepad2 className="w-16 h-16 text-black" />
                 </div>
-                <h1 className="text-5xl font-bold mb-2 tracking-tight bg-gradient-to-r from-blue-400 via-purple-400 to-orange-400 bg-clip-text text-transparent">
-                    Gemini Slingshot
+                <h1 className="text-5xl font-bold mb-2 tracking-tight bg-gradient-to-r from-[#00FFFF] via-[#CCFF00] to-[#00FFFF] bg-clip-text text-transparent">
+                    CamBlaster
                 </h1>
                 <p className="text-gray-400 text-lg">AI-Powered Hand Gesture Game</p>
             </div>
@@ -38,7 +38,7 @@ const LoginScreen: React.FC = () => {
             </button>
 
             <div className="mt-12 text-gray-600 text-sm">
-                Powered by Google Gemini & Aryan-algorithms
+                Powered by Google Gemini & Aryan-algorithms | {new Date().getFullYear()}
             </div>
         </div>
     );

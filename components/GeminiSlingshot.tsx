@@ -7,7 +7,16 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { getStrategicHint, TargetCandidate } from '../services/geminiService';
 import { Point, Bubble, Particle, BubbleColor, DebugInfo } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import { Loader2, Trophy, BrainCircuit, Play, MousePointerClick, Eye, Terminal, Clock, AlertTriangle, Target, Lightbulb, Monitor, LogOut } from 'lucide-react';
+import { Loader2, Trophy, BrainCircuit, Play, MousePointerClick, Eye, Terminal, Clock, AlertTriangle, Target, Lightbulb, Monitor, LogOut, Flame } from 'lucide-react';
+import { Difficulty } from '../types';
+import { playSound } from '../utils/audio';
+
+interface GeminiSlingshotProps {
+    difficulty: Difficulty;
+    bestScore: number;
+    onScoreUpdate: (score: number) => void;
+    onGameOver: (score: number) => void;
+}
 
 const PINCH_THRESHOLD = 0.05;
 const GRAVITY = 0.0;
@@ -24,13 +33,14 @@ const MIN_FORCE_MULT = 0.15;
 const MAX_FORCE_MULT = 0.45;
 
 // Material Design Colors & Scoring Strategy
+// Neon / Cyberpunk Palette
 const COLOR_CONFIG: Record<BubbleColor, { hex: string, points: number, label: string }> = {
-    red: { hex: '#ef5350', points: 100, label: 'Red' },     // Material Red 400
-    blue: { hex: '#42a5f5', points: 150, label: 'Blue' },    // Material Blue 400
-    green: { hex: '#66bb6a', points: 200, label: 'Green' },   // Material Green 400
-    yellow: { hex: '#ffee58', points: 250, label: 'Yellow' },  // Material Yellow 400
-    purple: { hex: '#ab47bc', points: 300, label: 'Purple' },  // Material Purple 400
-    orange: { hex: '#ffa726', points: 500, label: 'Orange' }   // Material Orange 400
+    red: { hex: '#FF0055', points: 100, label: 'Neon Red' },
+    blue: { hex: '#00FFFF', points: 150, label: 'Cyan' },
+    green: { hex: '#CCFF00', points: 200, label: 'Electric Lime' },
+    yellow: { hex: '#FFFF00', points: 250, label: 'Neon Yellow' },
+    purple: { hex: '#BC13FE', points: 300, label: 'Neon Purple' },
+    orange: { hex: '#FF8800', points: 500, label: 'Neon Orange' }
 };
 
 const COLOR_KEYS: BubbleColor[] = ['red', 'blue', 'green', 'yellow', 'purple', 'orange'];
@@ -50,7 +60,7 @@ const adjustColor = (color: string, amount: number) => {
     return "#" + componentToHex(r) + componentToHex(g) + componentToHex(b);
 };
 
-const GeminiSlingshot: React.FC = () => {
+const GeminiSlingshot: React.FC<GeminiSlingshotProps> = ({ difficulty, bestScore, onScoreUpdate, onGameOver }) => {
     const { user, signOut } = useAuth();
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -65,7 +75,9 @@ const GeminiSlingshot: React.FC = () => {
     const flightStartTime = useRef<number>(0);
     const bubbles = useRef<Bubble[]>([]);
     const particles = useRef<Particle[]>([]);
+    const stars = useRef<{ x: number; y: number; size: number; alpha: number; speed: number }[]>([]);
     const scoreRef = useRef<number>(0);
+    const comboRef = useRef<number>(0);
 
     const aimTargetRef = useRef<Point | null>(null);
     const isAiThinkingRef = useRef<boolean>(false);
@@ -82,6 +94,8 @@ const GeminiSlingshot: React.FC = () => {
     const [aiRationale, setAiRationale] = useState<string | null>(null);
     const [aimTarget, setAimTarget] = useState<Point | null>(null);
     const [score, setScore] = useState(0);
+    const [combo, setCombo] = useState(0);
+    const [showNewBest, setShowNewBest] = useState(false);
     const [isAiThinking, setIsAiThinking] = useState(false);
     const [selectedColor, setSelectedColor] = useState<BubbleColor>('red');
     const [availableColors, setAvailableColors] = useState<BubbleColor[]>([]);
@@ -125,9 +139,12 @@ const GeminiSlingshot: React.FC = () => {
 
     const initGrid = useCallback((width: number) => {
         const newBubbles: Bubble[] = [];
-        for (let r = 0; r < 5; r++) {
+        // Difficulty Logic: Adjust rows
+        const rows = difficulty === 'easy' ? 5 : difficulty === 'normal' ? 7 : 9;
+
+        for (let r = 0; r < rows; r++) {
             for (let c = 0; c < (r % 2 !== 0 ? GRID_COLS - 1 : GRID_COLS); c++) {
-                if (Math.random() > 0.1) {
+                if (Math.random() > (difficulty === 'easy' ? 0.2 : 0.1)) {
                     const { x, y } = getBubblePos(r, c, width);
                     newBubbles.push({
                         id: `${r}-${c}`,
@@ -142,6 +159,20 @@ const GeminiSlingshot: React.FC = () => {
             }
         }
         bubbles.current = newBubbles;
+
+        // Init Stars
+        const newStars = [];
+        for (let i = 0; i < 100; i++) {
+            newStars.push({
+                x: Math.random() * width,
+                y: Math.random() * (width * 0.75), // approx height
+                size: Math.random() * 2 + 0.5,
+                alpha: Math.random(),
+                speed: Math.random() * 0.2 + 0.05
+            });
+        }
+        stars.current = newStars;
+
         updateAvailableColors();
 
         // Trigger initial AI analysis after a short delay to allow render
@@ -274,11 +305,34 @@ const GeminiSlingshot: React.FC = () => {
                 points += basePoints;
             });
             // Combo Multiplier
-            const multiplier = matches.length > 3 ? 1.5 : 1.0;
+            comboRef.current += 1;
+            setCombo(comboRef.current);
+
+            if (matches.length > 5) playSound('combo');
+            else playSound('pop');
+
+            const multiplier = 1 + (comboRef.current * 0.1) + (matches.length > 3 ? 0.5 : 0);
             scoreRef.current += Math.floor(points * multiplier);
             setScore(scoreRef.current);
+
+            // New Best Check
+            if (scoreRef.current > bestScore && bestScore > 0 && !showNewBest) {
+                setShowNewBest(true);
+                playSound('newbest');
+            }
+            // Notify App (debounce this in real app, but ok here)
+            onScoreUpdate(scoreRef.current);
+
             return true;
         }
+
+        // Reset combo on miss (if calling this function implies a hit check)
+        // Actually this is called on `checkMatches` which only happens when a bubble settles.
+        // If no matches, we should reset combo? 
+        // Logic: if `matches.length < 3` -> reset combo.
+
+        comboRef.current = 0;
+        setCombo(0);
         return false;
     };
 
@@ -335,32 +389,42 @@ const GeminiSlingshot: React.FC = () => {
     };
 
     // --- Rendering Helper ---
+    // --- Rendering Helper ---
     const drawBubble = (ctx: CanvasRenderingContext2D, x: number, y: number, radius: number, colorKey: BubbleColor) => {
         const config = COLOR_CONFIG[colorKey];
         const baseColor = config.hex;
 
-        // Main Sphere Gradient (gives 3D depth)
-        // Shifted focus to top-left for light source
+        // Outer Glow
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = baseColor;
+
+        // Main Sphere Gradient (Sharper 3D)
         const grad = ctx.createRadialGradient(x - radius * 0.3, y - radius * 0.3, radius * 0.1, x, y, radius);
-        grad.addColorStop(0, '#ffffff');             // Specular highlight center (brightest)
-        grad.addColorStop(0.2, baseColor);           // Main color body
-        grad.addColorStop(1, adjustColor(baseColor, -60)); // Shadowed edge (darkest)
+        grad.addColorStop(0, '#ffffff');             // Specular highlight
+        grad.addColorStop(0.3, baseColor);           // Body
+        grad.addColorStop(0.85, baseColor);
+        grad.addColorStop(1, '#000000');             // Dark edge
 
         ctx.beginPath();
         ctx.arc(x, y, radius, 0, Math.PI * 2);
         ctx.fillStyle = grad;
         ctx.fill();
 
-        // Subtle Outline for definition
-        ctx.strokeStyle = adjustColor(baseColor, -80);
-        ctx.lineWidth = 1;
-        ctx.stroke();
+        // Reset Shadow for performance/cleanliness
+        ctx.shadowBlur = 0;
 
-        // Secondary "Glossy" Highlight (Hard reflection)
+        // Sharp Highlight (Glass effect)
         ctx.beginPath();
-        ctx.ellipse(x - radius * 0.3, y - radius * 0.35, radius * 0.25, radius * 0.15, Math.PI / 4, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.ellipse(x - radius * 0.3, y - radius * 0.35, radius * 0.25, radius * 0.12, Math.PI / 4, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
         ctx.fill();
+
+        // Bottom Reflection
+        ctx.beginPath();
+        ctx.arc(x, y, radius * 0.8, 0.2 * Math.PI, 0.8 * Math.PI);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
     };
 
     // --- Main Game Loop ---
@@ -408,6 +472,26 @@ const GeminiSlingshot: React.FC = () => {
             ctx.fillStyle = 'rgba(18, 18, 18, 0.85)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+            // --- Starfield Background ---
+            ctx.fillStyle = '#FFFFFF';
+            stars.current.forEach(star => {
+                star.y += star.speed;
+                star.alpha += (Math.random() - 0.5) * 0.05;
+                if (star.alpha < 0.2) star.alpha = 0.2;
+                if (star.alpha > 0.8) star.alpha = 0.8;
+
+                if (star.y > canvas.height) {
+                    star.y = 0;
+                    star.x = Math.random() * canvas.width;
+                }
+
+                ctx.globalAlpha = star.alpha;
+                ctx.beginPath();
+                ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            ctx.globalAlpha = 1.0;
+
             // --- Hand Tracking ---
             let handPos: Point | null = null;
             let pinchDist = 1.0;
@@ -434,10 +518,12 @@ const GeminiSlingshot: React.FC = () => {
 
                 // Cursor
                 ctx.beginPath();
-                ctx.arc(handPos.x, handPos.y, 20, 0, Math.PI * 2);
-                ctx.strokeStyle = pinchDist < PINCH_THRESHOLD ? '#66bb6a' : '#ffffff';
-                ctx.lineWidth = 2;
+                ctx.arc(handPos.x, handPos.y, 25, 0, Math.PI * 2);
+                ctx.strokeStyle = pinchDist < PINCH_THRESHOLD ? '#CCFF00' : '#00FFFF'; // Lime vs Cyan
+                ctx.lineWidth = 3;
+                ctx.setLineDash([5, 5]); // Cyberpunk feel
                 ctx.stroke();
+                ctx.setLineDash([]);
             }
 
             // --- SLINGSHOT LOGIC ---
@@ -478,6 +564,7 @@ const GeminiSlingshot: React.FC = () => {
 
                     if (stretchDist > 30) {
                         isFlying.current = true;
+                        playSound('shoot');
                         flightStartTime.current = performance.now();
                         const powerRatio = Math.min(stretchDist / MAX_DRAG_DIST, 1.0);
                         const velocityMultiplier = MIN_FORCE_MULT + (MAX_FORCE_MULT - MIN_FORCE_MULT) * (powerRatio * powerRatio);
@@ -582,6 +669,14 @@ const GeminiSlingshot: React.FC = () => {
                             color: selectedColorRef.current,
                             active: true
                         };
+
+                        // Game Over Check
+                        if (newBubble.y > canvas.height - 120) {
+                            onGameOver(scoreRef.current);
+                            playSound('gameover');
+                            return;
+                        }
+
                         bubbles.current.push(newBubble);
                         checkMatches(newBubble);
                         updateAvailableColors();
@@ -660,15 +755,19 @@ const GeminiSlingshot: React.FC = () => {
             // Removed Canvas "ANALYZING..." drawing code from here
 
             // Slingshot Band (Back)
-            const bandColor = isPinching.current ? '#fdd835' : 'rgba(255,255,255,0.4)';
+            const bandColor = isPinching.current ? '#CCFF00' : 'rgba(0, 255, 255, 0.4)';
             if (!isFlying.current) {
+                ctx.save();
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = bandColor;
                 ctx.beginPath();
-                ctx.moveTo(anchorPos.current.x - 35, anchorPos.current.y - 10);
+                ctx.moveTo(anchorPos.current.x - 45, anchorPos.current.y - 10);
                 ctx.lineTo(ballPos.current.x, ballPos.current.y);
-                ctx.lineWidth = 5;
+                ctx.lineWidth = 8;
                 ctx.strokeStyle = bandColor;
                 ctx.lineCap = 'round';
                 ctx.stroke();
+                ctx.restore();
             }
 
             // Draw Slingshot Ball (Projectile)
@@ -682,26 +781,38 @@ const GeminiSlingshot: React.FC = () => {
 
             // Slingshot Band (Front)
             if (!isFlying.current) {
+                ctx.save();
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = bandColor;
                 ctx.beginPath();
                 ctx.moveTo(ballPos.current.x, ballPos.current.y);
-                ctx.lineTo(anchorPos.current.x + 35, anchorPos.current.y - 10);
-                ctx.lineWidth = 5;
+                ctx.lineTo(anchorPos.current.x + 45, anchorPos.current.y - 10);
+                ctx.lineWidth = 8;
                 ctx.strokeStyle = bandColor;
                 ctx.lineCap = 'round';
                 ctx.stroke();
+                ctx.restore();
             }
 
             // Slingshot Handle
             ctx.beginPath();
             ctx.moveTo(anchorPos.current.x, canvas.height);
             ctx.lineTo(anchorPos.current.x, anchorPos.current.y + 40);
-            ctx.lineTo(anchorPos.current.x - 40, anchorPos.current.y);
+            ctx.lineTo(anchorPos.current.x - 50, anchorPos.current.y);
             ctx.moveTo(anchorPos.current.x, anchorPos.current.y + 40);
-            ctx.lineTo(anchorPos.current.x + 40, anchorPos.current.y);
-            ctx.lineWidth = 10;
+            ctx.lineTo(anchorPos.current.x + 50, anchorPos.current.y);
+            ctx.lineWidth = 12;
             ctx.lineCap = 'round';
-            ctx.strokeStyle = '#616161';
+            ctx.strokeStyle = '#444';
             ctx.stroke();
+
+            // Handle Glow
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = "#00FFFF";
+            ctx.strokeStyle = "#00FFFF";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
 
             // Particles
             for (let i = particles.current.length - 1; i >= 0; i--) {
@@ -782,18 +893,64 @@ const GeminiSlingshot: React.FC = () => {
     return (
         <div className="flex w-full h-screen bg-[#121212] overflow-hidden font-roboto text-[#e3e3e3]">
 
-            {/* MOBILE/TABLET BLOCKER OVERLAY */}
-            <div className="fixed inset-0 z-[100] bg-[#121212] flex flex-col items-center justify-center p-8 text-center md:hidden">
-                <Monitor className="w-16 h-16 text-[#ef5350] mb-6 animate-pulse" />
-                <h2 className="text-2xl font-bold text-[#e3e3e3] mb-4">Desktop View Required</h2>
-                <p className="text-[#c4c7c5] max-w-md text-lg leading-relaxed">
-                    This experience requires a larger screen for the webcam tracking and game mechanics.
-                </p>
-                <div className="mt-8 flex items-center gap-2 text-sm text-[#757575] uppercase tracking-wider font-bold">
-                    <div className="w-2 h-2 bg-[#42a5f5] rounded-full"></div>
-                    Please maximize window
+            {/* UI HELMET LAYOUT */}
+
+            {/* Top Bar */}
+            <div className="fixed top-0 left-0 right-0 z-50 p-6 flex justify-between items-start pointer-events-none">
+                <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-4 bg-black/40 backdrop-blur-md px-6 py-3 rounded-2xl border border-white/10 pointer-events-auto">
+                        <div className="flex flex-col">
+                            <span className="text-xs text-gray-400 font-mono uppercase tracking-widest">Score</span>
+                            <span className="text-4xl font-oxanium font-bold text-[#00FFFF] tabular-nums">{score}</span>
+                        </div>
+
+                        {/* Best Score */}
+                        <div className="flex flex-col pl-4 border-l border-white/10">
+                            <span className="text-xs text-gray-400 font-mono uppercase tracking-widest flex items-center gap-1">
+                                <Trophy className="w-3 h-3 text-[#CCFF00]" /> Best
+                            </span>
+                            <span className="text-xl font-oxanium font-bold text-white/80 tabular-nums">{Math.max(score, bestScore)}</span>
+                        </div>
+                    </div>
+
+                    {/* New Best Badge */}
+                    {showNewBest && (
+                        <div className="animate-pulse flex items-center gap-2 bg-[#CCFF00]/20 text-[#CCFF00] px-4 py-1.5 rounded-full border border-[#CCFF00] w-fit">
+                            <Trophy className="w-4 h-4" />
+                            <span className="text-xs font-bold uppercase tracking-wider">New Record!</span>
+                        </div>
+                    )}
+                </div>
+
+                {/* Combo Counter */}
+                <div className={`transition-all duration-300 ${combo > 1 ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}>
+                    <div className="flex flex-col items-center bg-black/40 backdrop-blur-md px-6 py-3 rounded-2xl border border-white/10">
+                        <span className="text-4xl font-black italic font-oxanium text-[#CCFF00] drop-shadow-[0_0_10px_rgba(204,255,0,0.5)]">
+                            {combo}x
+                        </span>
+                        <span className="text-xs text-[#00FFFF] font-bold uppercase tracking-widest flex items-center gap-1">
+                            <Flame className="w-3 h-3" /> Combo
+                        </span>
+                    </div>
+                </div>
+
+                {/* Right Side Controls */}
+                <div className="flex flex-col items-end gap-3 pointer-events-auto">
+                    <div className="flex items-center gap-3">
+                        {user?.photoURL && (
+                            <img src={user.photoURL} alt="User" className="w-10 h-10 rounded-full border-2 border-[#00FFFF] shadow-[0_0_15px_rgba(0,255,255,0.3)]" />
+                        )}
+                        <button
+                            onClick={() => signOut()}
+                            className="bg-red-500/20 hover:bg-red-500/40 text-red-400 p-2 rounded-xl transition-colors border border-red-500/30"
+                            title="Sign Out"
+                        >
+                            <LogOut className="w-5 h-5" />
+                        </button>
+                    </div>
                 </div>
             </div>
+
 
             {/* LEFT: Game Area */}
             <div ref={gameContainerRef} className="flex-1 relative h-full overflow-hidden">
@@ -821,45 +978,9 @@ const GeminiSlingshot: React.FC = () => {
                     </div>
                 )}
 
-                {/* HUD: Score Card */}
-                <div className="absolute top-6 left-6 z-40">
-                    <div className="bg-[#1e1e1e] p-5 rounded-[28px] border border-[#444746] shadow-2xl flex items-center gap-4 min-w-[180px]">
-                        <div className="bg-[#42a5f5]/20 p-3 rounded-full">
-                            <Trophy className="w-6 h-6 text-[#42a5f5]" />
-                        </div>
-                        <div>
-                            <p className="text-xs text-[#c4c7c5] uppercase tracking-wider font-medium">Score</p>
-                            <p className="text-3xl font-bold text-white">{score.toLocaleString()}</p>
-                        </div>
-                    </div>
-                </div>
 
-                {/* HUD: User Profile & Sign Out */}
-                <div className="absolute top-6 right-6 z-40">
-                    {user && (
-                        <div className="flex items-center gap-3 bg-[#1e1e1e]/90 p-2 pr-4 rounded-full border border-[#444746] shadow-xl backdrop-blur-md transition-all hover:bg-[#252525] group">
-                            {user.photoURL ? (
-                                <img src={user.photoURL} alt="User" className="w-10 h-10 rounded-full border-2 border-[#444746] shadow-sm" />
-                            ) : (
-                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-sm font-bold text-white border-2 border-[#444746]">
-                                    {user.displayName ? user.displayName[0].toUpperCase() : 'U'}
-                                </div>
-                            )}
-                            <div className="flex flex-col mr-1">
-                                <span className="text-xs font-bold text-white leading-tight max-w-[120px] truncate">
-                                    {user.displayName}
-                                </span>
-                                <button
-                                    onClick={signOut}
-                                    className="text-[10px] text-[#ef5350] hover:text-[#ff8a80] flex items-center gap-1 font-bold mt-0.5 transition-colors uppercase tracking-wider"
-                                >
-                                    <LogOut className="w-3 h-3" />
-                                    Sign Out
-                                </button>
-                            </div>
-                        </div>
-                    )}
-                </div>
+
+
 
                 {/* HUD: Color Picker */}
                 <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40">
@@ -1059,7 +1180,8 @@ const GeminiSlingshot: React.FC = () => {
                     <p className="text-[10px] text-gray-500 font-medium">Powered by Google Gemini 3 Flash</p>
                 </div>
             </div>
-        </div>
+
+        </div >
     );
 };
 

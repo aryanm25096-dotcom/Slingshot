@@ -14,6 +14,7 @@ export interface Vector {
 }
 
 export type BubbleColor = 'red' | 'blue' | 'green' | 'yellow' | 'purple' | 'orange';
+export type Difficulty = 'easy' | 'normal' | 'hard';
 
 export interface Bubble {
   id: string;
