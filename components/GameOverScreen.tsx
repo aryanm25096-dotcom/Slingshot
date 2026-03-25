@@ -97,7 +97,8 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({ score, bestScore, diffi
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-32 bg-gradient-to-b from-[#00FFFF]/10 to-transparent pointer-events-none" />
 
                 {/* Header */}
-                <div className="text-center mb-8 relative z-10">
+                <div className="text-center mb-8 relative z-10 flex flex-col items-center">
+                    <img src="/camblaster-logo.png" alt="CamBlaster Logo" style={{ width: '48px', height: '48px', objectFit: 'contain', background: 'transparent' }} className="mb-4 rounded-full shadow-[0_0_10px_rgba(124,107,255,0.5)]" />
                     <h2 className="text-4xl font-oxanium font-bold text-white mb-2">GAME OVER</h2>
                     <div className="flex justify-center items-baseline gap-2">
                         <span className="text-6xl font-oxanium font-bold text-[#00FFFF] drop-shadow-[0_0_15px_rgba(0,255,255,0.5)] tabular-nums">

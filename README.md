@@ -1,8 +1,20 @@
-# CamBlaster
+<p align="center">
+  <img src="public/camblaster-logo.png" alt="CamBlaster Logo" width="200" style="border-radius: 50%;"/>
+</p>
 
-**CamBlaster** is an AI-powered hand-gesture bubble shooter game played entirely with your webcam! Use your index finger and thumb to aim and shoot bubbles in this retro-futuristic arcade experience.
+<h1 align="center">CamBlaster</h1>
 
-![CamBlaster Logo](./public/logo.png)
+<p align="center">
+  <b>AI Hand-Gesture Arcade — Powered by Google Gemini</b>
+</p>
+
+<p align="center">
+  <a href="https://gemini-slingshot-one.vercel.app">🎮 Play Live</a> •
+  <a href="#tech-stack">Tech Stack</a> •
+  <a href="#getting-started">Get Started</a>
+</p>
+
+---
 
 ## 🎮 How to Play
 1. **Allow Camera Access**: The game requires webcam access to track your hand.

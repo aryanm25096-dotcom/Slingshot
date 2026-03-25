@@ -54,7 +54,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ userProfile, onComplete }
         return (
             <div className="flex flex-col items-center gap-4">
                 <div className={`${phase >= 1 ? 'animate-fade-in-up' : 'opacity-0'}`}>
-                    <GameLogo size="xl" />
+                    <img src="/camblaster-logo.png" alt="CamBlaster Logo" className="rounded-full" style={{ width: '120px', filter: 'drop-shadow(0 0 20px rgba(124,107,255,0.5))', margin: '0 auto', background: 'transparent' }} />
                 </div>
                 <div className="flex overflow-hidden">
                     {text.split('').map((char, index) => (

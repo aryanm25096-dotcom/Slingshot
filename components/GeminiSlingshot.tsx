@@ -906,8 +906,11 @@ const GeminiSlingshot: React.FC<GeminiSlingshotProps> = ({ difficulty, bestScore
             <div className="fixed top-0 left-0 right-0 z-50 p-6 flex justify-between items-start pointer-events-none">
                 <div className="flex flex-col gap-2">
                     <div className="flex items-center gap-4 bg-black/40 backdrop-blur-md px-6 py-3 rounded-2xl border border-white/10 pointer-events-auto">
-                        <GameLogo size="sm" />
-                        <div className="flex flex-col">
+                        <div className="flex items-center gap-3">
+                            <img src="/camblaster-logo.png" alt="CamBlaster Logo" className="rounded-full shadow-[0_0_10px_rgba(124,107,255,0.5)]" style={{ width: '48px', height: '48px', objectFit: 'contain', background: 'transparent' }} />
+                            <span className="font-oxanium font-bold text-xl tracking-wider text-white hidden sm:block">CamBlaster</span>
+                        </div>
+                        <div className="flex flex-col pl-4 border-l border-white/10">
                             <span className="text-xs text-gray-400 font-mono uppercase tracking-widest">Score</span>
                             <span className="text-4xl font-oxanium font-bold text-[#00FFFF] tabular-nums">{score}</span>
                         </div>
